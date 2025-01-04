@@ -25,7 +25,7 @@ def save_to_db(data):
 
         # Insert data into the PRICE table
         cursor.execute('''
-            INSERT INTO PRICE (Product, Date, Seller, Price) 
+            INSERT INTO PRICE (Product, Date, Seller, Price)
             VALUES (?, ?, ?, ?)
         ''', (data["Product"], data["Date"], data["Seller"], data["Price"]))
 
@@ -141,9 +141,9 @@ def parse_amazon_page(html):
             product_info["Seller"] = seller.text.strip()
         else:
             # If "Seller" is N/A, try to extract from the "bylineInfo" section
-            byline = soup.find("a", {"id": "bylineInfo"})
-            if byline and "Visit the" in byline.text:
-                product_info["Seller"] = byline.text.replace("Visit the", "").strip()
+            byline = soup.find("a", {"id": "bylineInfo", "class": "a-link-normal"})
+            if byline and "Besuche den" in byline.text:
+                product_info["Seller"] = byline.text.replace("Besuche den", "").strip()
 
     except Exception as e:
         print(f"Error parsing Amazon page: {e}")
