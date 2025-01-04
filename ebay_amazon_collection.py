@@ -19,19 +19,29 @@ def save_to_db(data):
                     Product TEXT,
                     Date TEXT,
                     Seller TEXT,
-                    Price TEXT
+                    Price TEXT,
+                    Source TEXT
                 )
             ''')
 
-        # Insert data into the PRICE table
+        # Check if the same product, seller, and date already exist
         cursor.execute('''
-            INSERT INTO PRICE (Product, Date, Seller, Price)
-            VALUES (?, ?, ?, ?)
-        ''', (data["Product"], data["Date"], data["Seller"], data["Price"]))
+            SELECT * FROM PRICE
+            WHERE Product = ? AND Date = ? AND Seller = ?
+        ''', (data["Product"], data["Date"], data["Seller"]))
 
-        conn.commit()
+        if cursor.fetchone():
+            print(f"Duplicate entry found, skipping: {data}")
+        else:
+            # Insert data into the PRICE table
+            cursor.execute('''
+                INSERT INTO PRICE (Product, Date, Seller, Price, Source)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (data["Product"], data["Date"], data["Seller"], data["Price"], data["Source"]))
+            conn.commit()
+            print("Data saved to database:", data)
+
         conn.close()
-        print("Data saved to database:", data)
     except Exception as e:
         print(f"Error saving to database: {e}")
 
@@ -47,7 +57,6 @@ def check_price_table_exists(conn):
     except Exception as e:
         print(f"Error checking for PRICE table: {e}")
         return False
-
 
 # Function to read products and URLs from Excel
 def read_products(file_path):
@@ -72,11 +81,10 @@ def fetch_html(url):
         print(f"Error fetching URL {url}: {e}")
         return None
 
-
 # Function to parse eBay product pages
 def parse_ebay_page(html):
     soup = BeautifulSoup(html, 'html.parser')
-    product_info = {"Product": "N/A", "Seller": "N/A", "Price": "N/A"}
+    product_info = {"Product": "N/A", "Seller": "N/A", "Price": "N/A", "Source": "eBay"}
 
     try:
         product_title = soup.find("h1", {"class": "x-item-title__mainTitle"})
@@ -104,7 +112,7 @@ def parse_ebay_page(html):
 # Function to parse Amazon product pages
 def parse_amazon_page(html):
     soup = BeautifulSoup(html, 'html.parser')
-    product_info = {"Product": "N/A", "Seller": "N/A", "Price": "N/A"}
+    product_info = {"Product": "N/A", "Seller": "N/A", "Price": "N/A", "Source": "Amazon"}
 
     try:
         # Extracting product title
@@ -112,28 +120,15 @@ def parse_amazon_page(html):
         if product_title:
             product_info["Product"] = product_title.text.strip()
 
-        # Handling Apple Watches specifically
-        if "Apple Watch" in product_info["Product"]:
-            prices = soup.find_all("span", {"class": "a-price-whole"})
-            if prices:
-                for price in prices:  # Loop through all possible price elements
-                    try:
-                        price_text = price.text.strip()
-                        cleaned_price = price_text.replace(",", "").strip()  # Remove commas
-                        final_price = float(cleaned_price) + 5.00  # Add delivery charges
-                        product_info["Price"] = f"{final_price:.2f}"  # Format to two decimal places
-                        break  # Use the first valid price found
-                    except ValueError:
-                        continue  # Skip invalid prices
+        # Extracting price
+        price_whole = soup.find("span", {"class": "a-price-whole"})
+        price_fraction = soup.find("span", {"class": "a-price-fraction"})
 
-        else:  # General case for other products
-            price_whole = soup.find("span", {"class": "a-price-whole"})
-            price_fraction = soup.find("span", {"class": "a-price-fraction"})
-            if price_whole and price_fraction:
-                price_text = f"{price_whole.text.strip()}{price_fraction.text.strip()}"
-                cleaned_price = price_text.replace(",", "").strip()  # Remove commas
-                final_price = float(cleaned_price) + 5.00  # Add delivery charges
-                product_info["Price"] = f"{final_price:.2f}"  # Format to two decimal places
+        price_text = f"{price_whole.text.strip()}.{price_fraction.text.strip()}"
+        cleaned_price = price_text.replace(",", "").strip()  # Remove commas
+        result = float(cleaned_price)
+        final_price = result + 5.00  # Add delivery charges
+        product_info["Price"] = f"{final_price:.2f}"  # Format to two decimal places
 
         # Extracting seller information
         seller = soup.find("a", {"id": "sellerProfileTriggerId"})
@@ -149,7 +144,6 @@ def parse_amazon_page(html):
         print(f"Error parsing Amazon page: {e}")
 
     return product_info
-
 
 # Main function
 def main():
@@ -184,7 +178,6 @@ def main():
         except Exception as e:
             print(f"An error occurred during the loop: {e}")
             break
-
 
 if __name__ == "__main__":
     main()
