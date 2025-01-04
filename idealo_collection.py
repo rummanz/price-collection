@@ -32,7 +32,8 @@ def fetch_html(url):
         print(f"Error fetching URL {url}: {e}")
         return None
 
-# Function to parse product details from the HTML page
+# Function to parse product details from the HTML page, not excluding amazon as the amaon sellers on Idealo differ from the ones
+#picked directly from the Amazon site.
 def parse_product_page(html):
     soup = BeautifulSoup(html, 'html.parser')
     product_list = []  # To store all product dictionaries
