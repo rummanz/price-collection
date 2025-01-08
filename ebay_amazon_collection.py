@@ -87,19 +87,22 @@ def parse_ebay_page(html):
     product_info = {"Product": "N/A", "Seller": "N/A", "Price": "N/A", "Source": "eBay"}
 
     try:
+        # Extracting product title
         product_title = soup.find("h1", {"class": "x-item-title__mainTitle"})
         if product_title:
             product_info["Product"] = product_title.text.replace("Details about", "").strip()
 
+        # Extracting price
         price = soup.find("div", {"class": "x-price-primary"})
         if price:
             price_text = price.text
-            euro_removed_price = price_text.replace("EUR", "").strip() # Remove Euro
-            euro_removed_price2 = euro_removed_price.replace("€", "").strip() # Remove €
-            cleaned_price = euro_removed_price2.replace(",", ".").strip()  # Remove commas
-            final_price = float(cleaned_price) + 5.49  # Add delivery charges for eBay
-            product_info["Price"] = f"{final_price:.2f}"  # Format to two decimal places
+            euro_removed_price = price_text.replace("EUR", "").strip() # remove Euro
+            euro_removed_price2 = euro_removed_price.replace("€", "").strip() # remove €
+            cleaned_price = euro_removed_price2.replace(",", ".").strip()  # remove commas
+            final_price = float(cleaned_price) + 5.49  # add delivery charges for eBay
+            product_info["Price"] = f"{final_price:.2f}"  # format to two decimal places
 
+        # Extracting seller information
         seller = soup.find("h2", {"class": "x-store-information__store-name"})
         if seller:
             product_info["Seller"] = seller.text.strip()
@@ -124,11 +127,26 @@ def parse_amazon_page(html):
         price_whole = soup.find("span", {"class": "a-price-whole"})
         price_fraction = soup.find("span", {"class": "a-price-fraction"})
 
-        price_text = f"{price_whole.text.strip()}.{price_fraction.text.strip()}"
-        cleaned_price = price_text.replace(",", "").strip()  # Remove commas
-        result = float(cleaned_price)
-        final_price = result + 5.00  # Add delivery charges
-        product_info["Price"] = f"{final_price:.2f}"  # Format to two decimal places
+        #previous code - thousand value did not work
+        # price_text = f"{price_whole.text.strip()}.{price_fraction.text.strip()}"
+        # cleaned_price = price_text.replace(",", "").strip()  # Remove commas
+        # result = float(cleaned_price)
+        # final_price = result + 5.00  # Add delivery charges
+        # product_info["Price"] = f"{final_price:.2f}"  # Format to two decimal places
+
+        if price_whole and price_fraction:
+            price_text = f"{price_whole.text.strip()}.{price_fraction.text.strip()}"
+
+            # remove the thousand separator and clean the price
+            cleaned_price = price_text.replace(".", "")
+            cleaned_price2 = cleaned_price.replace(",", ".").strip()
+
+            # convert to float
+            result = float(cleaned_price2)
+            final_price = result + 5.00  # add delivery charges for Amazon
+            product_info["Price"] = f"{final_price:.2f}"  # format to two decimal places
+        else:
+            product_info["Price"] = "Price not found"
 
         # Extracting seller information
         seller = soup.find("a", {"id": "sellerProfileTriggerId"})
