@@ -117,7 +117,7 @@ def save_to_db(data, product_name, g7_price):
                 "Idealo"
             ))
 
-        # Insert G7 Price row
+       # Inserting to the G7 price row after scraping the initial 6 idealo prices
         cursor.execute('''
             INSERT INTO PRICE (Product, Date, Seller, Price, Source) 
             VALUES (?, ?, ?, ?, ?)
