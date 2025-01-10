@@ -3,7 +3,6 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 import sqlite3
-import logging
 
 # Function to read products and URLs from Excel
 def read_products(file_path):
@@ -32,11 +31,10 @@ def fetch_html(url):
         print(f"Error fetching URL {url}: {e}")
         return None
 
-# Function to parse product details from the HTML page, not excluding amazon as the amazon sellers on Idealo differ from the ones
-#picked directly from the Amazon site.
+# Function to parse product details from the HTML page
 def parse_product_page(html):
     soup = BeautifulSoup(html, 'html.parser')
-    product_list = []  # To store all product dictionaries
+    product_list = []
 
     try:
         # Find all rows in the product offers list
@@ -48,22 +46,20 @@ def parse_product_page(html):
             product_name_tag = row.find("span", {"class": "productOffers-listItemTitleInner"})
             product_name = product_name_tag.text.strip() if product_name_tag else "N/A"
 
-            #extrcting price
+            # Extract price
             price_details_tag = row.find("div", {"class": "productOffers-listItemOfferShippingDetails"})
             if price_details_tag:
                 price = price_details_tag.text.strip().replace("inkl. Versand", "").strip()
                 price = price.replace("\u00a0", " ")  # Handle non-breaking space
                 price = price.replace(".", "").replace(",", ".")  # Convert to standard float format
-                price = price.replace("€","").strip()
-                # print("type of price", type(price))
+                price = price.replace("\u20ac", "").strip()  # Remove euro sign
+                #Print ("Success", Price)
                 try:
                     price = float(price)  # Convert to float
-                    # print("Great success;", price)
                 except ValueError:
-                    price = "N/A"  # Handle cases where conversion fails
+                    price = None
             else:
-                price = "N/A"
-               # print("not nice",price)
+                price = None
 
             # Extract seller name
             seller_tag = row.find("a", {"class": "productOffers-listItemOfferShopV2LogoLink"})
@@ -77,14 +73,13 @@ def parse_product_page(html):
 
             # Append the product info to the list
             product_list.append(product_info)
-        print(product_list)
     except Exception as e:
         print(f"Error parsing product page: {e}")
 
     return product_list
 
 # Function to save product details to the SQLite database
-def save_to_db(data):
+def save_to_db(data, product_name, g7_price):
     try:
         if not isinstance(data, list):
             print("Error: Product data is not a list:", data)
@@ -100,35 +95,45 @@ def save_to_db(data):
                 Date TEXT,
                 Seller TEXT,
                 Price REAL,
-                Platform TEXT
+                Source TEXT
             )
         ''')
 
+        # Insert scraped data
         for product in data:
             try:
                 price = float(product.get("Price", 0))  # Fetch price and convert to float
             except (ValueError, TypeError):
-                print(f"Error converting price: {product.get('Price')}")
                 price = None
 
             cursor.execute('''
-                INSERT INTO PRICE (Product, Date, Seller, Price, Platform) 
+                INSERT INTO PRICE (Product, Date, Seller, Price, Source) 
                 VALUES (?, ?, ?, ?, ?)
             ''', (
-                product.get("Product Name", "N/A"),  # Product Name or default "N/A"
-                datetime.now().strftime("%Y-%m-%d"),  # Current date
-                product.get("Seller", "N/A"),  # Seller or default "N/A"
-                price,  # Price as a float or NULL
-                "Idealo"  # Constant value for the Platform column
+                product.get("Product Name", "N/A"),
+                datetime.now().strftime("%Y-%m-%d"),
+                product.get("Seller", "N/A"),
+                price,
+                "Idealo"
             ))
+
+        # Insert G7 Price row
+        cursor.execute('''
+            INSERT INTO PRICE (Product, Date, Seller, Price, Source) 
+            VALUES (?, ?, ?, ?, ?)
+        ''', (
+            product_name,  # Product name from Excel
+            datetime.now().strftime("%Y-%m-%d"),  # Current date
+            "Our company",  # Seller
+            g7_price,  # G7 Price from Excel
+            "Our company"  # Source
+        ))
 
         conn.commit()
         conn.close()
         print("Data saved to database.")
     except Exception as e:
         print(f"Error saving to database: {e}")
-
-
 
 # Main function to coordinate the scraping process
 def main():
@@ -139,6 +144,7 @@ def main():
     for _, row in products.iterrows():
         product_name = row.get("Product name")  # From Excel file
         idealo_url = row.get("Idealo URL")  # Assuming Idealo URLs are in the second column
+        # g7_price = row.get("G7 Price")  # G7 Price column for earlier iteration
 
         if idealo_url and isinstance(idealo_url, str):  # Ensure URL exists and is a string
             print(f"Fetching data for {product_name} | URL: {idealo_url}")
@@ -146,7 +152,7 @@ def main():
             if html:
                 product_details = parse_product_page(html)
                 if product_details:
-                    save_to_db(product_details)
+                    save_to_db(product_details, product_name, g7_price)
 
 if __name__ == "__main__":
     main()
