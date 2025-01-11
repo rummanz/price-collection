@@ -1,166 +1,133 @@
-import matplotlib.pyplot as plt
-from matplotlib import rcParams
-from matplotlib import font_manager
-
-# Set the font to DejaVu Sans, which includes a wide range of glyphs
-rcParams['font.family'] = 'DejaVu Sans'
-
-# Ensure DejaVu Sans is used for all text elements
-font_manager.findSystemFonts(fontpaths=None, fontext='ttf')
-plt.rcParams['font.family'] = 'DejaVu Sans'
-
-import sqlite3
 import pandas as pd
-from datetime import datetime
-import seaborn as sns
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 import os
+import re
+from datetime import datetime
 
 
-def connect_to_db(db_path):
-    """
-    Establishes connection to database
-    """
-    try:
-        connection = sqlite3.connect(db_path)
-        print("Successfully connected to the database")
-        return connection
-    except sqlite3.Error as err:
-        print(f"Error: {err}")
-        return None
+# Function to create and save visualizations for each product
+def create_product_pdf(df):
+    # Get all unique products in the dataset
+    products = df['Product'].unique()
+    print(f"Found {len(products)} products: {products}")  # Debug: Print product list
+
+    # Iterate over each product and create a PDF for it
+    for product_name in products:
+        try:
+            # Filter the data for the current product (use .copy() to avoid SettingWithCopyWarning)
+            product_data = df[df['Product'] == product_name].copy()
+
+            # Filter only G7 data and non-G7 data
+            g7_data = product_data[product_data['Seller'] == 'G7']
+            other_sellers = product_data[product_data['Seller'] != 'G7']
+
+            # Group by Date to calculate min and average prices for other sellers
+            other_sellers_stats = other_sellers.groupby('Date').agg(
+                Min_Price=('Price', 'min'),
+                Avg_Price=('Price', 'mean')
+            ).reset_index()
+
+            # Add G7 price to stats for comparison
+            g7_stats = g7_data[['Date', 'Price']].rename(columns={'Price': 'G7_Price'})
+
+            # Merge stats for plotting
+            comparison_data = pd.merge(other_sellers_stats, g7_stats, on='Date', how='inner')
+
+            # Calculate rank for all sellers on each date
+            product_data['Price_Rank'] = product_data.groupby('Date')['Price'].rank(ascending=True)
+
+            # Create a sanitized product name for the filename
+            safe_product_name = re.sub(r'[^\w\s-]', '', product_name).strip().replace(' ', '_')
+            pdf_filename = f"{datetime.now().strftime('%Y%m%d')}_{safe_product_name}_price_analysis.pdf"
+
+            # Save each PDF to an "output" directory
+            output_dir = os.path.join(os.getcwd(), 'output')
+            os.makedirs(output_dir, exist_ok=True)  # Create output directory if it doesn't exist
+            file_path = os.path.join(output_dir, pdf_filename)
+
+            # Create and save the PDF
+            with PdfPages(file_path) as pdf:
+                ### First Graph: Comparison of other sellers' min price vs G7 price ###
+                plt.figure(figsize=(10, 6))
+                plt.plot(comparison_data['Date'], comparison_data['Min_Price'], label='Other Sellers Min Price',
+                         linestyle='--', color='red', marker='o')
+                plt.plot(comparison_data['Date'], comparison_data['G7_Price'], label='G7 Price', linestyle='-',
+                         color='blue', marker='o')
+                plt.title(f"Comparison of Min Price: Other Sellers vs G7 ({product_name})", fontsize=16)
+                plt.xlabel('Date', fontsize=14)
+                plt.ylabel('Price', fontsize=14)
+                plt.legend(title='Price Type', fontsize=10)
+                plt.xticks(rotation=45)
+                plt.grid(visible=True)
+                pdf.savefig()  # Save the current figure to the PDF
+                plt.close()
+
+                ### Second Graph: Comparison of other sellers' average price vs G7 price ###
+                plt.figure(figsize=(10, 6))
+                plt.plot(comparison_data['Date'], comparison_data['Avg_Price'], label='Other Sellers Avg Price',
+                         linestyle='-.', color='green', marker='o')
+                plt.plot(comparison_data['Date'], comparison_data['G7_Price'], label='G7 Price', linestyle='-',
+                         color='blue', marker='o')
+                plt.title(f"Comparison of Avg Price: Other Sellers vs G7 ({product_name})", fontsize=16)
+                plt.xlabel('Date', fontsize=14)
+                plt.ylabel('Price', fontsize=14)
+                plt.legend(title='Price Type', fontsize=10)
+                plt.xticks(rotation=45)
+                plt.grid(visible=True)
+                pdf.savefig()  # Save the current figure to the PDF
+                plt.close()
+
+                ### Third Graph: G7 Price Rank Change ###
+                plt.figure(figsize=(10, 6))
+                g7_rank_data = product_data[product_data['Seller'] == 'G7']
+                plt.plot(g7_rank_data['Date'], g7_rank_data['Price_Rank'], label='G7 Price Rank', linestyle='-',
+                         color='purple', marker='o')
+                plt.gca().invert_yaxis()  # Invert y-axis to show rank #1 at the top
+                plt.title(f"G7 Price Rank Change Over Time ({product_name})", fontsize=16)
+                plt.xlabel('Date', fontsize=14)
+                plt.ylabel('Rank', fontsize=14)
+                plt.legend(title='Rank', fontsize=10)
+                plt.xticks(rotation=45)
+                plt.grid(visible=True)
+                pdf.savefig()  # Save the current figure to the PDF
+                plt.close()
+
+            print(f"Successfully created PDF for {product_name}: {file_path}")
+        except Exception as e:
+            print(f"Error processing product {product_name}: {e}")
 
 
-def get_price_data(connection):
-    """
-    Retrieves price data from the PRICE table
-    """
-    query = """
-        SELECT *
-        FROM PRICE
-        ORDER BY Product, Date
-    """
-    try:
-        df = pd.read_sql(query, connection)
-        if df.empty:
-            print("No data found in the PRICE table")
-        return df
-    except Exception as e:
-        print(f"Error retrieving data: {e}")
-        return pd.DataFrame()
+# Function to generate sample data for the defined product list
+def generate_sample_data():
+    dates = pd.date_range('2025-01-01', periods=5)  # Adjust as needed (5 days of data)
+    products = [
+        'Apple Watch Ultra 2', 'Apple Watch Ultra', 'Garmin Epix™ Pro Gen 2',
+        'Garmin Venu 3S', 'Garmin Venu 3', 'Garmin fēnix® 7X Pro',
+        'Garmin fēnix® 7 Pro', 'Garmin Forerunner 965',
+        'Garmin Forerunner 255', 'Withings ScanWatch 2'
+    ]  # Product list
+    sellers = ['Seller A', 'Seller B', 'Seller C', 'G7']
+    data = []
+    for product in products:
+        for date in dates:
+            for seller in sellers:
+                if seller == 'G7':
+                    price = 450 + hash(f"{product}_{seller}_{date}") % 150
+                else:
+                    price = 500 + hash(f"{product}_{seller}_{date}") % 200
+                data.append({'Product': product, 'Date': date, 'Seller': seller, 'Price': price})
+    return pd.DataFrame(data)
 
 
-def create_visualization(df, product_name):
-    """
-    Creates three plots for a given product:
-    1. Minimum price vs our price
-    2. Average price vs our price
-    3. Our price rank
-    """
-    if df.empty:
-        print(f"No data available for product: {product_name}")
-        return None
-
-    # Set up the plotting style using seaborn
-    sns.set_theme(style="whitegrid")
-
-    # Create figure and subplots
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 12))
-    fig.suptitle(f'Price Analysis for {product_name}', fontsize=14)
-
-    # Convert Date to datetime if it's not already
-    df.loc[:, 'Date'] = pd.to_datetime(df['Date'], errors='coerce')
-
-    # Ensure 'Price' is a numeric column (convert if necessary)
-    df.loc[:, 'Price'] = pd.to_numeric(df['Price'], errors='coerce')
-
-    # Drop rows with missing values
-    df = df.dropna(subset=['Date', 'Price'])
-
-    # Check for missing values
-    if df.empty:
-        print(f"All data for product: {product_name} is missing or invalid")
-        return None
-
-    # Get data for "Our company"
-    our_data = df[df['Seller'] == 'Our company']
-    other_data = df[df['Seller'] != 'Our company']
-
-    # Group by date for statistics
-    daily_stats = other_data.groupby('Date').agg({
-        'Price': ['min', 'mean']
-    }).reset_index()
-    daily_stats.columns = ['Date', 'Min_Price', 'Avg_Price']
-
-    # Calculate daily ranks
-    def get_rank(group):
-        our_company_price = group[group['Seller'] == 'Our company']['Price']
-        if not our_company_price.empty:
-            return our_company_price.iloc[0].rank(method='min')
-        else:
-            return float('nan')  # If no data for 'Our company', return NaN
-
-    ranks = df.groupby('Date').apply(get_rank, include_groups=False).reset_index()
-    ranks.columns = ['Date', 'Rank']
-
-    # Plot 1: Minimum Price vs Our Price
-    sns.lineplot(data=daily_stats, x='Date', y='Min_Price', ax=ax1, label='Minimum Market Price', color='blue')
-    sns.lineplot(data=our_data, x='Date', y='Price', ax=ax1, label='Our Price', color='red', linestyle='--')
-    ax1.set_ylabel('Price (€)', fontsize=10)
-    ax1.set_title('Minimum Market Price vs Our Price', fontsize=12)
-
-    # Plot 2: Average Price vs Our Price
-    sns.lineplot(data=daily_stats, x='Date', y='Avg_Price', ax=ax2, label='Average Market Price', color='green')
-    sns.lineplot(data=our_data, x='Date', y='Price', ax=ax2, label='Our Price', color='red', linestyle='--')
-    ax2.set_ylabel('Price (€)', fontsize=10)
-    ax2.set_title('Average Market Price vs Our Price', fontsize=12)
-
-    # Plot 3: Price Rank
-    sns.lineplot(data=ranks, x='Date', y='Rank', ax=ax3, color='blue')
-    ax3.set_ylabel('Rank', fontsize=10)
-    ax3.set_xlabel('Date', fontsize=10)
-    ax3.set_title('Our Price Rank (1 = Lowest Price)', fontsize=12)
-    ax3.invert_yaxis()  # Lower rank (better) should be at the top
-
-    # Adjust layout to prevent overlap
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-
-    # Save the figure
-    filename = f"{datetime.now().strftime('%Y%m%d')}_prices.pdf"
-    if os.path.exists(filename):
-        os.remove(filename)  # Remove the file if it already exists
-    plt.savefig(filename, bbox_inches='tight', dpi=300)
-    plt.close()
-
-    return filename
-
-
+# Main function for execution
 def main():
-    # Use the full path to your database
-    db_path = 'C:/Users/udwal/price-collection/products.db'
-
-    # Connect to database
-    connection = connect_to_db(db_path)
-    if not connection:
-        return
-
-    try:
-        # Get data
-        df = get_price_data(connection)
-        if df.empty:
-            print("No data found in the database")
-            return
-
-        # Create visualizations for each product
-        for product in df['Product'].unique():
-            product_df = df[df['Product'] == product]
-            filename = create_visualization(product_df, product)
-            if filename:
-                print(f"Created visualization for {product}: {filename}")
-
-    except Exception as e:
-        print(f"Error occurred: {str(e)}")
-    finally:
-        connection.close()
+    df = generate_sample_data()  # Load the sample data
+    print(f"Loaded dataset with {len(df)} rows.")  # Debug statement
+    print(df['Product'].value_counts())  # Debug statement to check product distribution
+    create_product_pdf(df)  # Create PDFs for all products
 
 
+# Run the script
 if __name__ == "__main__":
     main()
