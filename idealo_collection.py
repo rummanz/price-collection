@@ -2,11 +2,18 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
-import sqlite3
+import mysql.connector
+from mysql.connector import Error
+from dotenv import load_dotenv
+import time
+import sys
+import os
+
+load_dotenv()
 
 
 # Function to read products and URLs from Excel
-def read_products(file_path):
+def read_excel(file_path):
     try:
         products = pd.read_excel(file_path)
         print(f"Successfully read {len(products)} product entries from {file_path}")
@@ -14,7 +21,6 @@ def read_products(file_path):
     except Exception as e:
         print(f"Error reading Excel file: {e}")
         return pd.DataFrame()
-
 
 # Function to fetch HTML content of a webpage
 def fetch_html(url):
@@ -32,7 +38,6 @@ def fetch_html(url):
     except requests.RequestException as e:
         print(f"Error fetching URL {url}: {e}")
         return None
-
 
 # Function to parse product details from the HTML page
 def parse_product_page(html):
@@ -80,114 +85,85 @@ def parse_product_page(html):
 
     return product_list
 
-
 # Function to save product details to the SQLite database
-def save_to_db(data, product_name, g7_price):
+# Function to save product details to the MySQL database
+def save_to_db(product_data, product_name, g7_price):
     try:
-        # Connect to SQLite database
-        conn = sqlite3.connect("products.db")
-        cursor = conn.cursor()
+        # Connect to the MariaDB database
+        conn = mysql.connector.connect(
+            host=os.getenv("DB_HOST"),
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASSWORD"),
+            database=os.getenv("DB_NAME")
+        )
 
-        # Ensure the PRICE table exists
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS PRICE (
-                Product TEXT,
-                Date TEXT,
-                Seller TEXT,
-                Price REAL,
-                Source TEXT
-            )
-        ''')
+        if conn.is_connected():
+            cursor = conn.cursor()
 
-        # Save scraped data for eBay/Amazon sellers
-        for product in data:
+            # Ensure the PRICE table exists
             cursor.execute('''
-                INSERT INTO PRICE (Product, Date, Seller, Price, Source) 
-                VALUES (?, ?, ?, ?, ?)
-            ''', (
-                product.get("Product Name", "N/A"),
-                datetime.now().strftime("%Y-%m-%d"),
-                product.get("Seller", "Unknown"),
-                product.get("Price"),
-                product.get("Source", "Unknown")
-            ))
+                CREATE TABLE IF NOT EXISTS PRICE (
+                    ID INT AUTO_INCREMENT PRIMARY KEY,
+                    Product VARCHAR(255),
+                    Date DATE,
+                    Seller VARCHAR(255),
+                    Price FLOAT,
+                    Source VARCHAR(255)
+                )
+            ''')
 
-        # Handle "Our Company" price: Ensure only one "Our Company" entry per product
-        cursor.execute('''
-            SELECT COUNT(*) FROM PRICE 
-            WHERE Product = ? AND Seller = "Our Company"
-        ''', (product_name,))
-        our_company_entry_exists = cursor.fetchone()[0] > 0
+            # Insert scraped data into the database
+            for product in product_data:
+                try:
+                    cursor.execute('''
+                        INSERT INTO PRICE (Product, Date, Seller, Price, Source)
+                        VALUES (%s, %s, %s, %s, %s)
+                    ''', (
+                        product.get("Product Name", product_name),  # Default to Excel name if missing
+                        datetime.now().strftime("%Y-%m-%d"),  # Current date
+                        product.get("Seller", "N/A"),  # Seller
+                        product.get("Price", 0.0),  # Price
+                        "Idealo"  # Source
+                    ))
+                except Error as e:
+                    print(f"Error inserting row: {e}")
 
-        if our_company_entry_exists:
-            # Update "Our Company" price for this product
-            cursor.execute('''
-                UPDATE PRICE 
-                SET Date = ?, Price = ? 
-                WHERE Product = ? AND Seller = "Our Company"
-            ''', (
-                datetime.now().strftime("%Y-%m-%d"),
-                g7_price,
-                product_name
-            ))
-        else:
-            # Insert new "Our Company" price
-            cursor.execute('''
-                INSERT INTO PRICE (Product, Date, Seller, Price, Source) 
-                VALUES (?, ?, ?, ?, ?)
-            ''', (
-                product_name,  # Product name from Excel
-                datetime.now().strftime("%Y-%m-%d"),  # Current date
-                "Our Company",  # Custom seller
-                g7_price,  # G7 price
-                "Internal Data"  # Source
-            ))
+            # Add "Our company" row with G7 Price
+            try:
+                cursor.execute('''
+                    INSERT INTO PRICE (Product, Date, Seller, Price, Source)
+                    VALUES (%s, %s, %s, %s, %s)
+                ''', (
+                    product_name,
+                    datetime.now().strftime("%Y-%m-%d"),
+                    "Our company",
+                    g7_price,
+                    "Our company"
+                ))
+            except Error as e:
+                print(f"Error inserting 'Our company' row: {e}")
 
-        # Commit changes to the database
-        conn.commit()
-        conn.close()
-        print(f"Data for product '{product_name}' saved to SQLite database successfully.")
-    except Exception as e:
+            conn.commit()
+            print("Data saved to database.")
+            cursor.close()
+            conn.close()
+
+    except Error as e:
         print(f"Error saving to database: {e}")
-
-def remove_duplicates():
-    try:
-        # Connect to SQLite database
-        conn = sqlite3.connect("products.db")
-        cursor = conn.cursor()
-
-        # Remove duplicates by creating a new table with unique records
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS PRICE_CLEAN AS
-            SELECT DISTINCT * FROM PRICE;
-        ''')
-
-        # Drop the original table
-        cursor.execute('DROP TABLE PRICE;')
-
-        # Rename the clean table to PRICE
-        cursor.execute('ALTER TABLE PRICE_CLEAN RENAME TO PRICE;')
-
-        # Commit changes and close connection
-        conn.commit()
-        conn.close()
-        print("Duplicate entries removed successfully.")
-    except Exception as e:
-        print(f"Error removing duplicates: {e}")
 
 
 # Main function to coordinate the scraping process
 def main():
     # Step 1: Read product URLs from Excel
-    products = read_products("products.xlsx")
+    products = read_excel("products.xlsx")
 
     # Step 2: Process each product entry
     for _, row in products.iterrows():
-        product_name = row.get("Product name")  # Extract product name from Excel
-        idealo_url = row.get("Idealo URL")  # Idealo product URL
-        g7_price = row.get("G7 Price")  # G7 price
+        product_name = row.get("Product name")  # From Excel file
+        idealo_url = row.get("Idealo URL")  # Assuming Idealo URLs are in the second column
+        g7_price = row.get("G7 Price")  # G7 Price column
 
-        if idealo_url and isinstance(idealo_url, str):
+        if idealo_url and isinstance(idealo_url, str):  # Ensure URL exists and is a string
             print(f"Fetching data for {product_name} | URL: {idealo_url}")
             html = fetch_html(idealo_url)
             if html:
@@ -195,8 +171,7 @@ def main():
                 if product_details:
                     save_to_db(product_details, product_name, g7_price)
 
-    # Remove duplicates after all data is saved
-    remove_duplicates()
-
 if __name__ == "__main__":
     main()
+
+# sources - https://ioflood.com/blog/python-isinstance-function-guide-with-examples/#:~:text=The%20isinstance()%20function%20in%20Python%20is%20a%20built%2Din,Python
