@@ -1,0 +1,6 @@
+pandas
+bs4
+openpyxl
+requests
+python-dotenv
+mysql-connector-python
