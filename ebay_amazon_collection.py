@@ -75,14 +75,21 @@ def read_products(file_path):
         print(f"Error reading Excel file: {e}")
         return pd.DataFrame()
 
-
 # Function to fetch HTML content of a webpage
 def fetch_html(url):
     try:
-        response = requests.get(url, timeout=10, headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.66 Safari/537.36"
-        })
-        response.raise_for_status()
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/114.0.5735.199 Safari/537.36"
+            ),
+            "Accept-Language": "de-DE,de;q=0.9,en-US,en;q=0.8",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "Connection": "keep-alive",
+        }
+        response = requests.get(url, timeout=10, headers=headers)
+        response.raise_for_status()  # Raise an HTTPError for bad responses
         return response.text
     except requests.RequestException as e:
         print(f"Error fetching URL {url}: {e}")
