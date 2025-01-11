@@ -2,67 +2,7 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
-import mysql.connector
-from mysql.connector import Error
-from dotenv import load_dotenv
-import time
-import sys
-import os
-
-# Load environment variables from .env file
-load_dotenv()
-
-# Function to save product details to the MariaDB database
-def save_to_db(data):
-    try:
-        # Connect to the MariaDB database
-        conn = mysql.connector.connect(
-            host= os.getenv("DB_HOST"),
-            user= os.getenv("DB_USER"),
-            password= os.getenv("DB_PASSWORD"),
-            database= os.getenv("DB_NAME")
-        )
-
-        if conn.is_connected():
-            cursor = conn.cursor()
-
-            # Check if the PRICE table exists
-            if not check_price_table_exists(cursor):
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS PRICE (
-                        ID INT AUTO_INCREMENT PRIMARY KEY,
-                        Product VARCHAR(255),
-                        Date VARCHAR(255),
-                        Seller VARCHAR(255),
-                        Price VARCHAR(255),
-                        Source VARCHAR(255)
-                    )
-                ''')
-
-            # Always insert the data without checking for duplicates
-            cursor.execute('''
-                INSERT INTO PRICE (Product, Date, Seller, Price, Source)
-                VALUES (%s, %s, %s, %s, %s)
-            ''', (data["Product"], data["Date"], data["Seller"], data["Price"], data["Source"]))
-            conn.commit()
-            print("Data saved to database:", data)
-
-            cursor.close()
-            conn.close()
-
-    except Error as e:
-        print(f"Error saving to database: {e}")
-
-# Function to check if the PRICE table exists in the MariaDB database
-def check_price_table_exists(cursor):
-    try:
-        cursor.execute('''
-            SHOW TABLES LIKE 'PRICE'
-        ''')
-        return cursor.fetchone() is not None
-    except Error as e:
-        print(f"Error checking for PRICE table: {e}")
-        return False
+import sqlite3
 
 
 # Function to read products and URLs from Excel
@@ -75,6 +15,7 @@ def read_products(file_path):
         print(f"Error reading Excel file: {e}")
         return pd.DataFrame()
 
+
 # Function to fetch HTML content of a webpage
 def fetch_html(url):
     try:
@@ -85,7 +26,7 @@ def fetch_html(url):
             ),
             "Accept-Language": "de-DE,de;q=0.9,en-US,en;q=0.8",
             "Accept-Encoding": "gzip, deflate, br",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,/;q=0.8",
             "Connection": "keep-alive",
         }
         response = requests.get(url, timeout=10, headers=headers)
@@ -95,118 +36,167 @@ def fetch_html(url):
         print(f"Error fetching URL {url}: {e}")
         return None
 
-# Function to parse eBay product pages
-def parse_ebay_page(html):
+
+# Function to parse product details from the HTML page
+def parse_product_page(html, source_name):
     soup = BeautifulSoup(html, 'html.parser')
-    product_info = {"Product": "N/A", "Seller": "N/A", "Price": "N/A", "Source": "eBay"}
+    product_list = []
 
     try:
-        # Extracting product title
-        product_title = soup.find("h1", {"class": "x-item-title__mainTitle"})
-        if product_title:
-            product_info["Product"] = product_title.text.replace("Details about", "").strip()
+        # (Example logic: Adjust parsing logic per source, currently generalized)
+        # Find all rows in the product offers list — adjust this based on website structure
+        offer_rows = soup.find_all("li", class_="offer-row-class", limit=6)  # Replace with the actual class
+        for row in offer_rows:
+            product_name = row.find("span", class_="product-title-class").text.strip() if row.find("span",
+                                                                                                   class_="product-title-class") else "N/A"
+            seller = row.find("div", class_="seller-name-class").text.strip() if row.find("div",
+                                                                                          class_="seller-name-class") else "Unknown"
+            price = row.find("div", class_="price-class").text.strip() if row.find("div",
+                                                                                   class_="price-class") else None
+            if price:
+                try:
+                    price = float(price.replace("$", "").replace(",", "").strip())
+                except ValueError:
+                    price = None
 
-        # Extracting price
-        price = soup.find("div", {"class": "x-price-primary"})
-        if price:
-            price_text = price.text
-            euro_removed_price = price_text.replace("EUR", "").strip() # remove Euro
-            euro_removed_price2 = euro_removed_price.replace("€", "").strip() # remove €
-            cleaned_price = euro_removed_price2.replace(",", ".").strip()  # remove commas
-            final_price = float(cleaned_price) + 5.49  # add delivery charges for eBay
-            product_info["Price"] = f"{final_price:.2f}"  # format to two decimal places
-
-        # Extracting seller information
-        seller = soup.find("h2", {"class": "x-store-information__store-name"})
-        if seller:
-            product_info["Seller"] = seller.text.strip()
+            product_list.append({
+                "Product Name": product_name,
+                "Seller": seller,
+                "Price": price,
+                "Source": source_name
+            })
 
     except Exception as e:
-        print(f"Error parsing eBay page: {e}")
+        print(f"Error parsing product page from {source_name}: {e}")
 
-    return product_info
+    return product_list
 
-# Function to parse Amazon product pages
-def parse_amazon_page(html):
-    soup = BeautifulSoup(html, 'html.parser')
-    product_info = {"Product": "N/A", "Seller": "N/A", "Price": "N/A", "Source": "Amazon"}
 
+# Function to save product data into a SQLite database
+def save_to_db(data, product_name, g7_price):
     try:
-        # Extracting product title
-        product_title = soup.find("span", {"id": "productTitle"})
-        if product_title:
-            product_info["Product"] = product_title.text.strip()
+        # Connect to SQLite database
+        conn = sqlite3.connect("products.db")
+        cursor = conn.cursor()
 
-        # Extracting price
-        price_whole = soup.find("span", {"class": "a-price-whole"})
-        price_fraction = soup.find("span", {"class": "a-price-fraction"})
+        # Ensure the PRICE table exists
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS PRICE (
+                Product TEXT,
+                Date TEXT,
+                Seller TEXT,
+                Price REAL,
+                Source TEXT
+            )
+        ''')
 
-        #previous code - thousand value did not work
-        # price_text = f"{price_whole.text.strip()}.{price_fraction.text.strip()}"
-        # cleaned_price = price_text.replace(",", "").strip()  # Remove commas
-        # result = float(cleaned_price)
-        # final_price = result + 5.00  # Add delivery charges
-        # product_info["Price"] = f"{final_price:.2f}"  # Format to two decimal places
+        # Save scraped data for eBay/Amazon sellers
+        for product in data:
+            cursor.execute('''
+                INSERT INTO PRICE (Product, Date, Seller, Price, Source) 
+                VALUES (?, ?, ?, ?, ?)
+            ''', (
+                product.get("Product Name", "N/A"),
+                datetime.now().strftime("%Y-%m-%d"),
+                product.get("Seller", "Unknown"),
+                product.get("Price"),
+                product.get("Source", "Unknown")
+            ))
 
-        if price_whole and price_fraction:
-            price_text = f"{price_whole.text.strip()}.{price_fraction.text.strip()}"
+        # Handle "Our Company" price: Ensure only one "Our Company" entry per product
+        cursor.execute('''
+            SELECT COUNT(*) FROM PRICE 
+            WHERE Product = ? AND Seller = "Our Company"
+        ''', (product_name,))
+        our_company_entry_exists = cursor.fetchone()[0] > 0
 
-            # remove the thousand separator and clean the price
-            cleaned_price = price_text.replace(".", "")
-            cleaned_price2 = cleaned_price.replace(",", ".").strip()
-
-            # convert to float
-            result = float(cleaned_price2)
-            final_price = result + 5.00  # add delivery charges for Amazon
-            product_info["Price"] = f"{final_price:.2f}"  # format to two decimal places
+        if our_company_entry_exists:
+            # Update "Our Company" price for this product
+            cursor.execute('''
+                UPDATE PRICE 
+                SET Date = ?, Price = ? 
+                WHERE Product = ? AND Seller = "Our Company"
+            ''', (
+                datetime.now().strftime("%Y-%m-%d"),
+                g7_price,
+                product_name
+            ))
         else:
-            product_info["Price"] = "Price not found"
+            # Insert new "Our Company" price
+            cursor.execute('''
+                INSERT INTO PRICE (Product, Date, Seller, Price, Source) 
+                VALUES (?, ?, ?, ?, ?)
+            ''', (
+                product_name,  # Product name from Excel
+                datetime.now().strftime("%Y-%m-%d"),  # Current date
+                "Our Company",  # Custom seller
+                g7_price,  # G7 price
+                "Internal Data"  # Source
+            ))
 
-        # Extracting seller information
-        seller = soup.find("a", {"id": "sellerProfileTriggerId"})
-        if seller:
-            product_info["Seller"] = seller.text.strip()
-        else:
-            # If "Seller" is N/A, try to extract from the "bylineInfo" section
-            byline = soup.find("a", {"id": "bylineInfo", "class": "a-link-normal"})
-            if byline and "Besuche den" in byline.text:
-                product_info["Seller"] = byline.text.replace("Besuche den", "").strip()
-
+        # Commit changes to the database
+        conn.commit()
+        conn.close()
+        print(f"Data for product '{product_name}' saved to SQLite database successfully.")
     except Exception as e:
-        print(f"Error parsing Amazon page: {e}")
+        print(f"Error saving to database: {e}")
 
-    return product_info
 
-# Main function
+def remove_duplicates():
+    try:
+        # Connect to SQLite database
+        conn = sqlite3.connect("products.db")
+        cursor = conn.cursor()
+
+        # Remove duplicates by creating a new table with unique records
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS PRICE_CLEAN AS
+            SELECT DISTINCT * FROM PRICE;
+        ''')
+
+        # Drop the original table
+        cursor.execute('DROP TABLE PRICE;')
+
+        # Rename the clean table to PRICE
+        cursor.execute('ALTER TABLE PRICE_CLEAN RENAME TO PRICE;')
+
+        # Commit changes and close connection
+        conn.commit()
+        conn.close()
+        print("Duplicate entries removed successfully.")
+    except Exception as e:
+        print(f"Error removing duplicates: {e}")
+
+# Main function to coordinate the scraping process
 def main():
-        try:
-            products = read_products("products.xlsx")
+    # Step 1: Read product URLs from Excel
+    products = read_products("products.xlsx")
 
-            for _, row in products.iterrows():
-                product_name = row.get("Product name")
-                amazon_url = row.get("Amazon URL")
-                ebay_url = row.get("Ebay URL")
+    # Step 2: Process each product entry
+    for _, row in products.iterrows():
+        product_name = row.get("Product name")
+        ebay_url = row.get("Ebay URL")
+        amazon_url = row.get("Amazon URL")
+        g7_price = row.get("G7 Price")
 
-                if ebay_url and isinstance(ebay_url, str):
-                    print(f"Fetching data for {product_name} (eBay) | URL: {ebay_url}")
-                    html = fetch_html(ebay_url)
-                    if html:
-                        product_data = parse_ebay_page(html)
-                        product_data["Date"] = datetime.now().strftime("%Y-%m-%d")
-                        save_to_db(product_data)
+        # Process eBay URL
+        if ebay_url and isinstance(ebay_url, str):
+            print(f"Fetching eBay data for: {product_name} | URL: {ebay_url}")
+            ebay_html = fetch_html(ebay_url)
+            if ebay_html:
+                ebay_product_details = parse_product_page(ebay_html, "eBay")
+                save_to_db(ebay_product_details, product_name, g7_price)
 
-                if amazon_url and isinstance(amazon_url, str):
-                    print(f"Fetching data for {product_name} (Amazon) | URL: {amazon_url}")
-                    html = fetch_html(amazon_url)
-                    if html:
-                        product_data = parse_amazon_page(html)
-                        product_data["Date"] = datetime.now().strftime("%Y-%m-%d")
-                        save_to_db(product_data)
+        # Process Amazon URL
+        if amazon_url and isinstance(amazon_url, str):
+            print(f"Fetching Amazon data for: {product_name} | URL: {amazon_url}")
+            amazon_html = fetch_html(amazon_url)
+            if amazon_html:
+                amazon_product_details = parse_product_page(amazon_html, "Amazon")
+                save_to_db(amazon_product_details, product_name, g7_price)
 
-            print("Done!")
-
-        except Exception as e:
-            print(f"An error occurred during the loop: {e}")
+    # Remove duplicates after all data is saved
+    remove_duplicates()
 
 if __name__ == "__main__":
     main()

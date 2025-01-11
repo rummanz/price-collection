@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 import sqlite3
 
+
 # Function to read products and URLs from Excel
 def read_products(file_path):
     try:
@@ -13,6 +14,7 @@ def read_products(file_path):
     except Exception as e:
         print(f"Error reading Excel file: {e}")
         return pd.DataFrame()
+
 
 # Function to fetch HTML content of a webpage
 def fetch_html(url):
@@ -30,6 +32,7 @@ def fetch_html(url):
     except requests.RequestException as e:
         print(f"Error fetching URL {url}: {e}")
         return None
+
 
 # Function to parse product details from the HTML page
 def parse_product_page(html):
@@ -53,7 +56,6 @@ def parse_product_page(html):
                 price = price.replace("\u00a0", " ")  # Handle non-breaking space
                 price = price.replace(".", "").replace(",", ".")  # Convert to standard float format
                 price = price.replace("\u20ac", "").strip()  # Remove euro sign
-                #Print ("Success", Price)
                 try:
                     price = float(price)  # Convert to float
                 except ValueError:
@@ -78,13 +80,11 @@ def parse_product_page(html):
 
     return product_list
 
+
 # Function to save product details to the SQLite database
 def save_to_db(data, product_name, g7_price):
     try:
-        if not isinstance(data, list):
-            print("Error: Product data is not a list:", data)
-            return
-
+        # Connect to SQLite database
         conn = sqlite3.connect("products.db")
         cursor = conn.cursor()
 
@@ -99,41 +99,82 @@ def save_to_db(data, product_name, g7_price):
             )
         ''')
 
-        # Insert scraped data
+        # Save scraped data for eBay/Amazon sellers
         for product in data:
-            try:
-                price = float(product.get("Price", 0))  # Fetch price and convert to float
-            except (ValueError, TypeError):
-                price = None
-
             cursor.execute('''
                 INSERT INTO PRICE (Product, Date, Seller, Price, Source) 
                 VALUES (?, ?, ?, ?, ?)
             ''', (
                 product.get("Product Name", "N/A"),
                 datetime.now().strftime("%Y-%m-%d"),
-                product.get("Seller", "N/A"),
-                price,
-                "Idealo"
+                product.get("Seller", "Unknown"),
+                product.get("Price"),
+                product.get("Source", "Unknown")
             ))
 
-       # Inserting to the G7 price row after scraping the initial 6 idealo prices
+        # Handle "Our Company" price: Ensure only one "Our Company" entry per product
         cursor.execute('''
-            INSERT INTO PRICE (Product, Date, Seller, Price, Source) 
-            VALUES (?, ?, ?, ?, ?)
-        ''', (
-            product_name,  # Product name from Excel
-            datetime.now().strftime("%Y-%m-%d"),  # Current date
-            "Our company",  # Seller
-            g7_price,  # G7 Price from Excel
-            "Our company"  # Source
-        ))
+            SELECT COUNT(*) FROM PRICE 
+            WHERE Product = ? AND Seller = "Our Company"
+        ''', (product_name,))
+        our_company_entry_exists = cursor.fetchone()[0] > 0
 
+        if our_company_entry_exists:
+            # Update "Our Company" price for this product
+            cursor.execute('''
+                UPDATE PRICE 
+                SET Date = ?, Price = ? 
+                WHERE Product = ? AND Seller = "Our Company"
+            ''', (
+                datetime.now().strftime("%Y-%m-%d"),
+                g7_price,
+                product_name
+            ))
+        else:
+            # Insert new "Our Company" price
+            cursor.execute('''
+                INSERT INTO PRICE (Product, Date, Seller, Price, Source) 
+                VALUES (?, ?, ?, ?, ?)
+            ''', (
+                product_name,  # Product name from Excel
+                datetime.now().strftime("%Y-%m-%d"),  # Current date
+                "Our Company",  # Custom seller
+                g7_price,  # G7 price
+                "Internal Data"  # Source
+            ))
+
+        # Commit changes to the database
         conn.commit()
         conn.close()
-        print("Data saved to database.")
+        print(f"Data for product '{product_name}' saved to SQLite database successfully.")
     except Exception as e:
         print(f"Error saving to database: {e}")
+
+def remove_duplicates():
+    try:
+        # Connect to SQLite database
+        conn = sqlite3.connect("products.db")
+        cursor = conn.cursor()
+
+        # Remove duplicates by creating a new table with unique records
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS PRICE_CLEAN AS
+            SELECT DISTINCT * FROM PRICE;
+        ''')
+
+        # Drop the original table
+        cursor.execute('DROP TABLE PRICE;')
+
+        # Rename the clean table to PRICE
+        cursor.execute('ALTER TABLE PRICE_CLEAN RENAME TO PRICE;')
+
+        # Commit changes and close connection
+        conn.commit()
+        conn.close()
+        print("Duplicate entries removed successfully.")
+    except Exception as e:
+        print(f"Error removing duplicates: {e}")
+
 
 # Main function to coordinate the scraping process
 def main():
@@ -142,11 +183,11 @@ def main():
 
     # Step 2: Process each product entry
     for _, row in products.iterrows():
-        product_name = row.get("Product name")  # From Excel file
-        idealo_url = row.get("Idealo URL")  # Assuming Idealo URLs are in the second column
-        # g7_price = row.get("G7 Price")  # G7 Price column for earlier iteration
+        product_name = row.get("Product name")  # Extract product name from Excel
+        idealo_url = row.get("Idealo URL")  # Idealo product URL
+        g7_price = row.get("G7 Price")  # G7 price
 
-        if idealo_url and isinstance(idealo_url, str):  # Ensure URL exists and is a string
+        if idealo_url and isinstance(idealo_url, str):
             print(f"Fetching data for {product_name} | URL: {idealo_url}")
             html = fetch_html(idealo_url)
             if html:
@@ -154,6 +195,8 @@ def main():
                 if product_details:
                     save_to_db(product_details, product_name, g7_price)
 
+    # Remove duplicates after all data is saved
+    remove_duplicates()
+
 if __name__ == "__main__":
     main()
-# sources - https://ioflood.com/blog/python-isinstance-function-guide-with-examples/#:~:text=The%20isinstance()%20function%20in%20Python%20is%20a%20built%2Din,Python
