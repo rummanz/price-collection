@@ -2,61 +2,68 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
-import sqlite3
+import mysql.connector
+from mysql.connector import Error
+from dotenv import load_dotenv
 import time
+import sys
+import os
 
-# Function to save product details to the SQLite database
+# Load environment variables from .env file
+load_dotenv()
+
+# Function to save product details to the MariaDB database
 def save_to_db(data):
     try:
-        conn = sqlite3.connect("products.db")
-        cursor = conn.cursor()
+        # Connect to the MariaDB database
+        conn = mysql.connector.connect(
+            host= os.getenv("DB_HOST"),
+            user= os.getenv("DB_USER"),
+            password= os.getenv("DB_PASSWORD"),
+            database= os.getenv("DB_NAME")
+        )
 
-        # Check if the PRICE table exists
-        if not check_price_table_exists(conn):
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS PRICE (
-                    ID INTEGER PRIMARY KEY AUTOINCREMENT,
-                    Product TEXT,
-                    Date TEXT,
-                    Seller TEXT,
-                    Price TEXT,
-                    Source TEXT
-                )
-            ''')
+        if conn.is_connected():
+            cursor = conn.cursor()
 
-        # Check if the same product, seller, and date already exist
-        cursor.execute('''
-            SELECT * FROM PRICE
-            WHERE Product = ? AND Date = ? AND Seller = ?
-        ''', (data["Product"], data["Date"], data["Seller"]))
+            # Check if the PRICE table exists
+            if not check_price_table_exists(cursor):
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS PRICE (
+                        ID INT AUTO_INCREMENT PRIMARY KEY,
+                        Product VARCHAR(255),
+                        Date VARCHAR(255),
+                        Seller VARCHAR(255),
+                        Price VARCHAR(255),
+                        Source VARCHAR(255)
+                    )
+                ''')
 
-        if cursor.fetchone():
-            print(f"Duplicate entry found, skipping: {data}")
-        else:
-            # Insert data into the PRICE table
+            # Always insert the data without checking for duplicates
             cursor.execute('''
                 INSERT INTO PRICE (Product, Date, Seller, Price, Source)
-                VALUES (?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s)
             ''', (data["Product"], data["Date"], data["Seller"], data["Price"], data["Source"]))
             conn.commit()
             print("Data saved to database:", data)
 
-        conn.close()
-    except Exception as e:
+            cursor.close()
+            conn.close()
+
+    except Error as e:
         print(f"Error saving to database: {e}")
 
-
-# Function to check if the PRICE table exists
-def check_price_table_exists(conn):
+# Function to check if the PRICE table exists in the MariaDB database
+def check_price_table_exists(cursor):
     try:
-        cursor = conn.cursor()
         cursor.execute('''
-            SELECT name FROM sqlite_master WHERE type='table' AND name='PRICE'
+            SHOW TABLES LIKE 'PRICE'
         ''')
         return cursor.fetchone() is not None
-    except Exception as e:
+    except Error as e:
         print(f"Error checking for PRICE table: {e}")
         return False
+
 
 # Function to read products and URLs from Excel
 def read_products(file_path):
@@ -165,7 +172,6 @@ def parse_amazon_page(html):
 
 # Main function
 def main():
-    while True:
         try:
             products = read_products("products.xlsx")
 
@@ -190,12 +196,10 @@ def main():
                         product_data["Date"] = datetime.now().strftime("%Y-%m-%d")
                         save_to_db(product_data)
 
-            print("Waiting 24 hours before the next run...")
-            time.sleep(86400)
+            print("Done!")
 
         except Exception as e:
             print(f"An error occurred during the loop: {e}")
-            break
 
 if __name__ == "__main__":
     main()
