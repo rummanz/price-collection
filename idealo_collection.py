@@ -24,12 +24,21 @@ def read_excel(file_path):
 
 # Function to fetch HTML content of a webpage
 def fetch_html(url):
-    header_var = {
+    # header_var = {
+    #     'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+    #     'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0',
+    #     'referer': 'https://www.idealo.de/',
+    #     'Origin': 'https://www.idealo.de',
+    #     'content-type': 'application/json; charset=utf-8',
+    # }
+        header_var = {
         'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
         'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0',
         'referer': 'https://www.idealo.de/',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0',
         'Origin': 'https://www.idealo.de',
         'content-type': 'application/json; charset=utf-8',
+        'Cookie': 'ak_bmsc=79B9BCF566E121B1AE1AD56883B41B46~000000000000000000000000000000~YAAQFI0QAu8NQ2qUAQAAQkIyhBoNdEbssZY88zCHHakUmaktHcR7n/hpIEtkw09Q2YPM2JBJHYotp0HlphMpsFc0z8Gkg/Hk2MdeRSyg9K4tJeuGagrJywzmUlLJFbNhOw0yiRkX+H8xuU/Dx0RIxeN0xDA+HXzdT3tw2Q0Ssu+xZMbuGQQwA7TA0o+ViJc8Wtjd5jaYXs0jPm/1D0oeTaTPP2wNQT3kSsMuM5hTdqgmAmHvbbOYHe96Ev2rC2pQ+q51I3/n6yrBmIrnava7rEUAFOfgJnPwxXZSSF7Es9QaZo4nFoG/yd9X6hii9UUxP+TSJXWta3beOxM+KBuH1goY1082fxf8DCI=; sessionid=1737384673668_96428679-387e-b039-2cde-287194ca15db; ttrjm=91bafc4b-9db3-d3ed-7226-fa1f7f87410a; xp_seed_s=86b37; JSESSIONID=A9BD7BB182619FCF9B5ED6B83A66A679'
     }
     try:
         response = requests.get(url, timeout=10, headers=header_var)
