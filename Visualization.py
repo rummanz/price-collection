@@ -7,7 +7,7 @@ import re
 from sqlalchemy import create_engine
 
 # Create SQLAlchemy engine
-engine = create_engine('mysql+mysqlconnector://root:admin123@localhost/udval_products')
+engine = create_engine('mysql+mysqlconnector://root:password@localhost/udval_products')
 
 # Query the database and load data into a DataFrame
 query = 'SELECT Product, Date, Price, Source FROM Price ORDER BY Product, Date'
