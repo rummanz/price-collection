@@ -1,133 +1,162 @@
-import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
-import os
+import pandas as pd
+import mysql.connector
+import unicodedata
 import re
-from datetime import datetime
+from sqlalchemy import create_engine
+
+# Create SQLAlchemy engine
+engine = create_engine('mysql+mysqlconnector://root:admin123@localhost/udval_products')
+
+# Query the database and load data into a DataFrame
+query = 'SELECT Product, Date, Price, Source FROM Price ORDER BY Product, Date'
+df = pd.read_sql(query, con=engine)
+
+# Define fixed prices dictionary
+fixed_prices = {
+    'Apple Watch Ultra': 689.99,
+    'Apple Watch Ultra 2': 839.99,
+    'Garmin Epix Pro Gen 2': 699.99,
+    'Garmin fenix 7 Pro': 619.99,
+    'Garmin fenix 7X Pro': 699.99,
+    'Garmin Forerunner 255': 239.99,
+    'Garmin Forerunner 965': 559.99,
+    'Garmin Venu 3': 409.99,
+    'Garmin Venu 3S': 389.99,
+    'Withings ScanWatch 2': 129.99,
+}
+
+# Clean the data
+df['Price'] = pd.to_numeric(df['Price'], errors='coerce')
+df_cleaned = df.dropna(subset=['Price'])
+df_cleaned.reset_index(drop=True, inplace=True)
 
 
-# Function to create and save visualizations for each product
-def create_product_pdf(df):
-    # Get all unique products in the dataset
-    products = df['Product'].unique()
-    print(f"Found {len(products)} products: {products}")  # Debug: Print product list
-
-    # Iterate over each product and create a PDF for it
-    for product_name in products:
-        try:
-            # Filter the data for the current product (use .copy() to avoid SettingWithCopyWarning)
-            product_data = df[df['Product'] == product_name].copy()
-
-            # Filter only G7 data and non-G7 data
-            g7_data = product_data[product_data['Seller'] == 'G7']
-            other_sellers = product_data[product_data['Seller'] != 'G7']
-
-            # Group by Date to calculate min and average prices for other sellers
-            other_sellers_stats = other_sellers.groupby('Date').agg(
-                Min_Price=('Price', 'min'),
-                Avg_Price=('Price', 'mean')
-            ).reset_index()
-
-            # Add G7 price to stats for comparison
-            g7_stats = g7_data[['Date', 'Price']].rename(columns={'Price': 'G7_Price'})
-
-            # Merge stats for plotting
-            comparison_data = pd.merge(other_sellers_stats, g7_stats, on='Date', how='inner')
-
-            # Calculate rank for all sellers on each date
-            product_data['Price_Rank'] = product_data.groupby('Date')['Price'].rank(ascending=True)
-
-            # Create a sanitized product name for the filename
-            safe_product_name = re.sub(r'[^\w\s-]', '', product_name).strip().replace(' ', '_')
-            pdf_filename = f"{datetime.now().strftime('%Y%m%d')}_{safe_product_name}_price_analysis.pdf"
-
-            # Save each PDF to an "output" directory
-            output_dir = os.path.join(os.getcwd(), 'output')
-            os.makedirs(output_dir, exist_ok=True)  # Create output directory if it doesn't exist
-            file_path = os.path.join(output_dir, pdf_filename)
-
-            # Create and save the PDF
-            with PdfPages(file_path) as pdf:
-                ### First Graph: Comparison of other sellers' min price vs G7 price ###
-                plt.figure(figsize=(10, 6))
-                plt.plot(comparison_data['Date'], comparison_data['Min_Price'], label='Other Sellers Min Price',
-                         linestyle='--', color='red', marker='o')
-                plt.plot(comparison_data['Date'], comparison_data['G7_Price'], label='G7 Price', linestyle='-',
-                         color='blue', marker='o')
-                plt.title(f"Comparison of Min Price: Other Sellers vs G7 ({product_name})", fontsize=16)
-                plt.xlabel('Date', fontsize=14)
-                plt.ylabel('Price', fontsize=14)
-                plt.legend(title='Price Type', fontsize=10)
-                plt.xticks(rotation=45)
-                plt.grid(visible=True)
-                pdf.savefig()  # Save the current figure to the PDF
-                plt.close()
-
-                ### Second Graph: Comparison of other sellers' average price vs G7 price ###
-                plt.figure(figsize=(10, 6))
-                plt.plot(comparison_data['Date'], comparison_data['Avg_Price'], label='Other Sellers Avg Price',
-                         linestyle='-.', color='green', marker='o')
-                plt.plot(comparison_data['Date'], comparison_data['G7_Price'], label='G7 Price', linestyle='-',
-                         color='blue', marker='o')
-                plt.title(f"Comparison of Avg Price: Other Sellers vs G7 ({product_name})", fontsize=16)
-                plt.xlabel('Date', fontsize=14)
-                plt.ylabel('Price', fontsize=14)
-                plt.legend(title='Price Type', fontsize=10)
-                plt.xticks(rotation=45)
-                plt.grid(visible=True)
-                pdf.savefig()  # Save the current figure to the PDF
-                plt.close()
-
-                ### Third Graph: G7 Price Rank Change ###
-                plt.figure(figsize=(10, 6))
-                g7_rank_data = product_data[product_data['Seller'] == 'G7']
-                plt.plot(g7_rank_data['Date'], g7_rank_data['Price_Rank'], label='G7 Price Rank', linestyle='-',
-                         color='purple', marker='o')
-                plt.gca().invert_yaxis()  # Invert y-axis to show rank #1 at the top
-                plt.title(f"G7 Price Rank Change Over Time ({product_name})", fontsize=16)
-                plt.xlabel('Date', fontsize=14)
-                plt.ylabel('Rank', fontsize=14)
-                plt.legend(title='Rank', fontsize=10)
-                plt.xticks(rotation=45)
-                plt.grid(visible=True)
-                pdf.savefig()  # Save the current figure to the PDF
-                plt.close()
-
-            print(f"Successfully created PDF for {product_name}: {file_path}")
-        except Exception as e:
-            print(f"Error processing product {product_name}: {e}")
+# Normalize text function
+def normalize_text(text):
+    text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('utf-8')
+    text = re.sub(r'[^\w\s\-,/_]', '', text)
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()
 
 
-# Function to generate sample data for the defined product list
-def generate_sample_data():
-    dates = pd.date_range('2025-01-01', periods=5)  # Adjust as needed (5 days of data)
-    products = [
-        'Apple Watch Ultra 2', 'Apple Watch Ultra', 'Garmin Epix™ Pro Gen 2',
-        'Garmin Venu 3S', 'Garmin Venu 3', 'Garmin fēnix® 7X Pro',
-        'Garmin fēnix® 7 Pro', 'Garmin Forerunner 965',
-        'Garmin Forerunner 255', 'Withings ScanWatch 2'
-    ]  # Product list
-    sellers = ['Seller A', 'Seller B', 'Seller C', 'G7']
-    data = []
-    for product in products:
-        for date in dates:
-            for seller in sellers:
-                if seller == 'G7':
-                    price = 450 + hash(f"{product}_{seller}_{date}") % 150
-                else:
-                    price = 500 + hash(f"{product}_{seller}_{date}") % 200
-                data.append({'Product': product, 'Date': date, 'Seller': seller, 'Price': price})
-    return pd.DataFrame(data)
+# Apply normalization to the 'Product' column
+df_cleaned.loc[:, 'Product'] = df_cleaned['Product'].apply(normalize_text)
+
+# Define product categories and their corresponding grouping keywords
+categories = {
+    'Apple Watch Ultra 2': ['Apple Watch Ultra 2'],
+    'Apple Watch Ultra': ['Apple Watch Ultra'],
+    'Garmin Epix Pro Gen 2': ['Epix'],
+    'Garmin Venu 3S': ['Garmin Venu 3S'],
+    'Garmin Venu 3': ['Garmin Venu 3'],
+    'Garmin fenix 7X Pro': ['Garmin fenix 7X Pro'],
+    'Garmin fenix 7 Pro': ['Garmin fenix 7 Pro'],
+    'Garmin Forerunner 965': ['Forerunner 965'],
+    'Garmin Forerunner 255': ['Forerunner 255'],
+    'Withings ScanWatch 2': ['Withings'],
+}
+
+# Function to categorize products based on their names
+def categorize_product(product_name):
+    for category, keywords in categories.items():
+        if any(keyword.lower() in product_name.lower() for keyword in keywords):
+            return category
+    return None
 
 
-# Main function for execution
-def main():
-    df = generate_sample_data()  # Load the sample data
-    print(f"Loaded dataset with {len(df)} rows.")  # Debug statement
-    print(df['Product'].value_counts())  # Debug statement to check product distribution
-    create_product_pdf(df)  # Create PDFs for all products
+# Add a new column for category
+df_cleaned = df_cleaned.copy()  # Make a copy to avoid the warning
+df_cleaned['Category'] = df_cleaned['Product'].apply(categorize_product)
 
 
-# Run the script
-if __name__ == "__main__":
-    main()
+# Remove rows with None category
+df_cleaned = df_cleaned[df_cleaned['Category'].notna()]
+
+# Convert 'Date' to datetime
+df_cleaned['Date'] = pd.to_datetime(df_cleaned['Date'])
+
+# Define the function to generate PDFs for each category
+def generate_category_pdf(df_cleaned, fixed_prices, categories):
+    # Loop through each category and generate the PDF
+    for category in categories:
+        # Filter data for this category
+        category_data = df_cleaned[df_cleaned['Category'] == category]
+
+        # Data for other Sources (average price)
+        other_price_data = category_data[category_data['Source'] != 'Our company']
+
+        # Get the fixed price for this category
+        fixed_price = fixed_prices.get(category)
+
+        # Generate a PDF for each category
+        pdf_filename = f'Price_Report_{category.replace(" ", "_")}.pdf'
+
+        with PdfPages(pdf_filename) as pdf:
+            # Plotting Average Price
+            plt.figure(figsize=(10, 6))
+            if not other_price_data.empty:
+                avg_price_other = other_price_data.groupby('Date')['Price'].mean().reset_index()
+                plt.plot(avg_price_other['Date'], avg_price_other['Price'], label='Other Sources (Average)', color='red', marker='o')
+
+            if fixed_price is not None:
+                plt.axhline(y=fixed_price, color='blue', linestyle='--', label='Our Company (Fixed Price)')
+            plt.title(f"Average Price Over Time for {category}")
+            plt.xlabel('Date')
+            plt.ylabel('Price')
+            plt.grid(True)
+            plt.xticks(rotation=45)
+            plt.tight_layout()
+            plt.legend()
+            pdf.savefig()  # Save the current figure to the PDF
+            plt.close()
+
+            # Plotting Minimum Price
+            plt.figure(figsize=(10, 6))
+            if not other_price_data.empty:
+                min_price_other = other_price_data.groupby('Date')['Price'].min().reset_index()
+                plt.plot(min_price_other['Date'], min_price_other['Price'], label='Other Sources (Minimum)', color='red', marker='o')
+
+            if fixed_price is not None:
+                plt.axhline(y=fixed_price, color='blue', linestyle='--', label='Our Company (Fixed Price)')
+            plt.title(f"Minimum Price Over Time for {category}")
+            plt.xlabel('Date')
+            plt.ylabel('Price')
+            plt.grid(True)
+            plt.xticks(rotation=45)
+            plt.tight_layout()
+            plt.legend()
+            pdf.savefig()  # Save the current figure to the PDF
+            plt.close()
+
+            # Plotting Price Ranking
+            all_price_data = category_data[category_data['Source'] != 'Our company']
+
+            plt.figure(figsize=(10, 6))
+            if not all_price_data.empty:
+                price_groups = category_data.groupby('Date')
+                ranking_data = []
+                for date, group in price_groups:
+                    all_prices = group['Price']
+                    rank = (all_prices <= fixed_price).sum()
+                    ranking_data.append({'Date': date, 'Rank': rank})
+
+                ranking_data = pd.DataFrame(ranking_data)
+                plt.plot(ranking_data['Date'], ranking_data['Rank'], label='Our Price Ranking', color='green', marker='o')
+
+            plt.title(f"Price Ranking Over Time for {category}")
+            plt.xlabel('Date')
+            plt.ylabel('Rank (Position Among Sources)')
+            plt.grid(True)
+            plt.xticks(rotation=45)
+            plt.tight_layout()
+            plt.legend()
+            pdf.savefig()  # Save the current figure to the PDF
+            plt.close()
+
+# Generate PDFs for each category
+generate_category_pdf(df_cleaned, fixed_prices, categories)
+
+# Close the database connection
+engine.dispose()
