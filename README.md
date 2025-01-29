@@ -16,10 +16,4 @@ The project consists of following components that are developed by 4 team member
 
 # Credentials
 
-DB_HOST=3.73.121.111
-DB_USER=pyuser11
-DB_PASSWORD=P7Oc19B5mTAmb2Kh
-DB_NAME=products
-DB_PORT=3306
-
 # How it works

@@ -26,24 +26,25 @@ def save_to_db(data):
         if conn.is_connected():
             cursor = conn.cursor()
 
-            # Check if the PRICE table exists
+            # Check if the PRICE1 table exists
             if not check_price_table_exists(cursor):
                 cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS PRICE (
-                        ID INT AUTO_INCREMENT PRIMARY KEY,
-                        Product VARCHAR(255),
-                        Date VARCHAR(255),
-                        Seller VARCHAR(255),
-                        Price VARCHAR(255),
-                        Source VARCHAR(255)
-                    )
-                ''')
+                CREATE TABLE IF NOT EXISTS PRICE1 (
+                    ID INT AUTO_INCREMENT PRIMARY KEY,
+                    Product VARCHAR(255) COLLATE utf8mb4_unicode_ci,
+                    Date VARCHAR(255) COLLATE utf8mb4_unicode_ci,
+                    Seller VARCHAR(255) COLLATE utf8mb4_unicode_ci,
+                    Price VARCHAR(255) COLLATE utf8mb4_unicode_ci,
+                    Source VARCHAR(255) COLLATE utf8mb4_unicode_ci,
+                    ProductId VARCHAR(5) COLLATE utf8mb4_unicode_ci
+                ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+            ''')
 
             # Always insert the data without checking for duplicates
             cursor.execute('''
-                INSERT INTO PRICE (Product, Date, Seller, Price, Source)
-                VALUES (%s, %s, %s, %s, %s)
-            ''', (data["Product"], data["Date"], data["Seller"], data["Price"], data["Source"]))
+                INSERT INTO PRICE1 (Product, Date, Seller, Price, Source, ProductId)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            ''', (data["Product"], data["Date"], data["Seller"], data["Price"], data["Source"], data["ProductId"]))
             conn.commit()
             print("Data saved to database:", data)
 
@@ -57,13 +58,12 @@ def save_to_db(data):
 def check_price_table_exists(cursor):
     try:
         cursor.execute('''
-            SHOW TABLES LIKE 'PRICE'
+            SHOW TABLES LIKE 'PRICE1'
         ''')
         return cursor.fetchone() is not None
     except Error as e:
         print(f"Error checking for PRICE table: {e}")
         return False
-
 
 # Function to read products and URLs from Excel
 def read_products(file_path):
@@ -186,6 +186,8 @@ def main():
                 product_name = row.get("Product name")
                 amazon_url = row.get("Amazon URL")
                 ebay_url = row.get("Ebay URL")
+                product_id = row.get("ProductId")  # Get ProductId from Excel
+
 
                 if ebay_url and isinstance(ebay_url, str):
                     print(f"Fetching data for {product_name} (eBay) | URL: {ebay_url}")
@@ -193,6 +195,7 @@ def main():
                     if html:
                         product_data = parse_ebay_page(html)
                         product_data["Date"] = datetime.now().strftime("%Y-%m-%d")
+                        product_data["ProductId"] = product_id  # Add ProductId to data
                         save_to_db(product_data)
 
                 if amazon_url and isinstance(amazon_url, str):
@@ -201,6 +204,7 @@ def main():
                     if html:
                         product_data = parse_amazon_page(html)
                         product_data["Date"] = datetime.now().strftime("%Y-%m-%d")
+                        product_data["ProductId"] = product_id  # Add ProductId to data
                         save_to_db(product_data)
 
             print("Done!")
