@@ -79,14 +79,23 @@ def read_products(file_path):
 def fetch_html(url):
     try:
         headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/114.0.5735.199 Safari/537.36"
-            ),
-            "Accept-Language": "de-DE,de;q=0.9,en-US,en;q=0.8",
-            "Accept-Encoding": "gzip, deflate, br",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-            "Connection": "keep-alive",
+		"accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+ 		"accept-encoding": "gzip, deflate, br, zstd",
+		"accept-language": "en-US,en;q=0.9,de-DE;q=0.8,de;q=0.7",
+		"cache-control": "max-age=0",
+		#"cookie": "_cmp_controllerid=cf9a98f1fe158df23e63f7e05f659bd5686a8b5c57f0b4a28518fb1c326c9829; trackingid=9cf422e1-2af9-4d6b-8cc0-5e5bdc98aaaa; consentStatus=true; xp_seed_p=c2855; fs_sampled=false; _gcl_au=1.1.477155101.1737071014; sp=aa8ef104-fc6c-42ba-9bdf-3101427bb49d; FPAU=1.1.477155101.1737071014; _tt_enable_cookie=1; _ttp=gu0w-t0tmpRzMjQii1GHTMteQvt.tt.1; _fbp=fb.1.1737071015637.332911955219135486; sessionid=1738026403991_8d264ed4-9e50-4ee4-1027-4ec291217392; ttrjm=15555128-3b49-0d34-d21c-2b329be14240; bm_mi=8D478449E6851A24D511FD6E36A1A1C6~YAAQvxYRApHPyaeUAQAAU05yqhqVxTUDOGA8gZ7P2Dw9bSHLkRwjQnbGq3inTFGMjtAutIrz2kUkPYvBittI9HwFOnk0jbyjFtHcxHtx0h9c+fPaQezF5V/w0z2kgx6axTPzq5ust/HAeEYVpDxpza1I3Thp1aBU8Twpfam8SiPljI0Pmig57JENaEltkuEk2NPfF39CtQpqO2/cNzK3HcdR3J1Up9Ob75zp1PP8sk9l/FaJ8DFWBk0wmDtKPCCEYQhorwO/NP8/maGu21YR37rzc4QNA5BXBVgv0fT9BAxeLujciXe5vxwOsHaXhJmnRxeb3HPo0vdt3xPGhs7LfirC7VN+lZg1P5nXU8lfrUeVWmbAsA==~1; ak_bmsc=E3859B873ED98C49945DAB9EFB33DC0F~000000000000000000000000000000~YAAQJk9lXzot0aeUAQAApE9yqhqZZ1qcgRNiqNpWtgTyAY5xOntkh8SxsG2vD79U8ZgUFwoSEFPMYJSbggxdbmFzYeb5fJLgNYXWNjfVmcGbGwkoCfZ8AS1pw7LJoJ5I9gpFexO2oaCVMh4NJYvKgTwGWWAjrf678IqxBbr/+sr129TIonKV3xqhmapuTQpH4mwvm8X5Mx+++9cH6GO79WwDqcuMM1h1z27FPMHSZUyOvqjchDQe3RGf9VCumxhv9AVvipTtXr4+D16VlcQf43kAK2atPMDmzt23vEyN5WY1y9+XaJSoeGQxSf3q6ONeZEYJO5G2jcV7/3b1ZZCRh0LRMN5SCcSEX6sh6Lst/9JOuTjA2HzCjO8bEtDnT3QacsX2lFbZYWIC6uWJiYPVwgofLPW97VtB7zrb0O5QHtop9SHjfwcbUNv5nFafnKzKM5Yn2K0uXP2b6IAC6GDlWhJXSz644Mm0BhQmdxew0Omf0+QLPxw0V8Z7Bxgj9tHU5XTBb7TIADssKM8=; crto_is_user_optout=false; crto_mapped_user_id=oTpIyd_lj2Hrtvy-8bxKIBvwewcUrvFx; JSESSIONID=6EE8ACFF4F16A2AA83B4D5B2C6705B8D; __rtbh.lid=%7B%22eventType%22%3A%22lid%22%2C%22id%22%3A%22e9lgDiwEhNvO21q4iSZ6%22%2C%22expiryDate%22%3A%222026-01-28T01%3A06%3A52.673Z%22%7D; _tq_id.TV-7245903663-1.f8ad=b658cf4ecf9b9258.1737071014.0.1738026413..; _uetsid=2592cf90dd1411efb92d097a69afadbd; _uetvid=b40ec080d46311ef9de67f8643850af7",
+		"dnt": "1",
+		"priority": "u=0, i",
+		"sec-ch-ua": "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"",
+		"sec-ch-ua-mobile": "?0",
+		"sec-ch-ua-platform": "\"Linux\"",
+		"sec-fetch-dest": "document",
+		"sec-fetch-mode": "navigate",
+		"sec-fetch-site": "same-origin",
+		"sec-fetch-user": "?1",
+		"upgrade-insecure-requests": "1",
+		"user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+		"viewport-width":"1712"
         }
         response = requests.get(url, timeout=10, headers=headers)
         response.raise_for_status()  # Raise an HTTPError for bad responses

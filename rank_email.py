@@ -1,5 +1,12 @@
 import mysql.connector
 from mysql.connector import Error
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Database connection parameters
 config = {
@@ -10,6 +17,47 @@ config = {
     'raise_on_warnings': True
 
 }
+
+def load_email_template():
+    """Load the email body template from settings.txt."""
+    try:
+        with open('settings.txt', 'r') as file:
+            for line in file:
+                if line.strip().startswith("email_body="):
+                    return line.split("email_body=", 1)[1].strip()
+        return None
+    except FileNotFoundError:
+        print("Error: settings.txt file not found.")
+        return None
+
+def send_email(subject, body, recipients):
+    """Send an email using Gmail SMTP."""
+    sender_email = os.getenv("SENDER_EMAIL")
+    sender_password = os.getenv("SENDER_PASSWORD")
+    smtp_server = os.getenv("SMTP_SERVER")
+    smtp_port = int(os.getenv("SMTP_PORT"))
+
+    if not all([sender_email, sender_password, smtp_server, smtp_port]):
+        print("Incomplete email settings in .env file.")
+        return
+
+    try:
+        # Create the email
+        msg = MIMEMultipart()
+        msg['From'] = sender_email
+        msg['To'] = ', '.join(recipients)
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body, 'plain'))
+
+        # Connect to Gmail SMTP and send
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, recipients, msg.as_string())
+        print("Email sent successfully!")
+    except Exception as e:
+        print(f"Error sending email: {e}")
+
 
 def get_db_connection():
     """Establish a connection to the MySQL database."""
@@ -31,7 +79,7 @@ def fetch_latest_prices(conn):
     '''
     cursor.execute(query)
     prices = cursor.fetchall()
-    print("Fetched prices:", prices)  # Debug print
+    #print("Fetched prices:", prices)  # Debug print
     return prices
 
 def calculate_rank(prices):
@@ -51,7 +99,7 @@ def calculate_rank(prices):
         our_company_price = next((price for price in product_prices if price['Seller'] == 'Our company'), None)
         if our_company_price:
             rank_changes[product] = our_company_price['Rank']
-            print(f"Product ID: {product}, Our company Rank: {our_company_price['Rank']}")  # Debug print
+            #print(f"Product ID: {product}, Our company Rank: {our_company_price['Rank']}")  # Debug print
     
     return rank_changes
 
@@ -105,6 +153,31 @@ def main():
 
     # Compare ranks to identify changes
     rank_changes = compare_ranks(current_ranks, previous_ranks)
+
+    if rank_changes:
+    # Load email template from settings.txt
+        email_template = load_email_template()
+        if not email_template:
+            print("Email template not found in settings.txt.")
+            return
+            # Build the email body
+        body = "RANK CHANGE! "
+        for product_id, change in rank_changes.items():
+            product_name = next(
+                price['Product'] for price in latest_prices 
+                if price['ProductId'] == product_id
+            )
+            body += email_template.format(
+                product_id=product_id,
+                product_name=product_name,
+                previous_rank=change['previous_rank'],
+                current_rank=change['current_rank']
+            ) + "\n\n"
+
+        # Send email
+        subject = "Rank Change Alert"
+        recipients = os.getenv("RECIPIENT_EMAILS").split(',')
+        send_email(subject, body.strip(), recipients)
 
     # Output the rank changes
     for product, change in rank_changes.items():

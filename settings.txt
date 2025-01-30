@@ -1,0 +1,4 @@
+email_body=Product ID: {product_id}
+Product Name: {product_name}
+Previous Rank: {previous_rank}
+Current Rank: {current_rank}
