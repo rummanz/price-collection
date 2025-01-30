@@ -5,12 +5,21 @@ import mysql.connector
 import unicodedata
 import re
 from sqlalchemy import create_engine
+from dotenv import load_dotenv
+import time
+import sys
+import os
+
+load_dotenv()
+
+
 
 # Create SQLAlchemy engine
-engine = create_engine('mysql+mysqlconnector://root:password@localhost/udval_products')
+#engine = create_engine('mysql+mysqlconnector://root:password@localhost/udval_products')
+engine = create_engine(os.getenv('DATABASE_URL'))
 
 # Query the database and load data into a DataFrame
-query = 'SELECT Product, Date, Price, Source FROM Price ORDER BY Product, Date'
+query = 'SELECT Product, Date, Price, Source FROM PRICE1 ORDER BY Product, Date'
 df = pd.read_sql(query, con=engine)
 
 # Define fixed prices dictionary
