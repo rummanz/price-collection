@@ -15,7 +15,6 @@ load_dotenv()
 
 
 # Create SQLAlchemy engine
-#engine = create_engine('mysql+mysqlconnector://root:password@localhost/udval_products')
 engine = create_engine(os.getenv('DATABASE_URL'))
 
 # Query the database and load data into a DataFrame
