@@ -40,6 +40,22 @@ Before running this project, ensure you have the following:
   - The project is deployed on an AWS EC2 instance for cloud-based execution
 - Error Handling & Logging:
   - Logs collection status and captures errors for debugging
+ 
+## Credentials
+
+### Database Configuration:
+- DB_HOST="IP address of the MariaDB server (e.g., 192.168.1.100)"
+- DB_USER="Database username (e.g., admin)"
+- DB_PASSWORD="Database password"
+- DB_NAME="Database name (e.g., my_database)"
+- DATABASE_URL="Full database URL (e.g., mariadb://admin:password@192.168.1.100:3306/my_database)"
+
+### SMTP Settings (Gmail Example):
+- SENDER_EMAIL="Sender's Gmail address (e.g., yourname@gmail.com)"
+- SENDER_PASSWORD="Sender's Gmail app-specific password (Note: Avoid using regular Gmail passwords)"
+- SMTP_SERVER="smtp.gmail.com"
+- SMTP_PORT="587"  # Use 587 for TLS, or 465 for SSL
+- RECIPIENT_EMAILS="Comma-separated recipient email addresses (e.g., recipient1@example.com,recipient2@example.com)"
 
 ## Project Structures 
 
