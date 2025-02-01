@@ -14,6 +14,7 @@ The project consists of following components that are developed by 4 team member
 - requirements.txt
 - readme.md
 - .env
+- products.xlsx
 
 ## Prerequisites  
 Before running this project, ensure you have the following:  
