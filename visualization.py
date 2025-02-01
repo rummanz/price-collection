@@ -15,8 +15,6 @@ def main():
 
 
 
-    # Create SQLAlchemy engine
-    #engine = create_engine('mysql+mysqlconnector://root:admin123@localhost/udval_products')
     engine = create_engine(os.getenv('DATABASE_URL'))
 
     # Query the database and load data into a DataFrame
