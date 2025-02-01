@@ -15,13 +15,16 @@ The project consists of following components that are developed by 4 team member
 - readme.md
 - .env
 
-## ⚙️ Prerequisites  
+## Prerequisites  
 Before running this project, ensure you have the following:  
 
 ### **System Requirements**  
-- Python 3.x  
-- MySQL  
-- Git  
+- OS: Debian 12 (Bookworm)
+- Python 3.x
+- MySQL (MariaDB)
+- Git
+- PHPMyAdmin (for database management)
+- webhook (for handling web callbacks)
 
 ## Key Features
 - Data Collection:
@@ -44,6 +47,7 @@ Before running this project, ensure you have the following:
 ├── data/                  # Collected data storage
 ├── logs/                  # Log files for data collection activities
 ├── requirements.txt       # Project dependencies
+├── .env.template          # Environment variable template file
 └── README.md              # Project documentation
 ```
 
@@ -68,14 +72,24 @@ After launching the instance, connect to it using SSH:
 ssh -i "your-key.pem" ec2-user@your-ec2-public-ip
 ```
 ### **Step 3: Install Dependencies**
+```
+sudo apt update
+sudo apt install git mariadb-server phpmyadmin python3-pip webhook
+```
 
 ### **Step 4: Clone the Repository**
+```
 git clone https://github.com/rummanz/price-collection
 cd price-collection
+```
 
 ### **Step 5: Install Project Dependencies**
+```
 pip3 install -r requirements.txt
+```
 
 ### **Step 6: Start the application**
+```
 python3 main.py
+```
 
