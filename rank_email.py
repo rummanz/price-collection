@@ -86,22 +86,31 @@ def calculate_rank(prices):
     """Calculate the rank of 'Our company' for each product."""
     rank_changes = {}
     products = set([price['ProductId'] for price in prices])
-    
+
     for product in products:
-        product_prices = [price for price in prices if price['ProductId'] == product]
-        product_prices.sort(key=lambda x: float(x['Price']))
+        # Filter out invalid prices
+        product_prices = [
+            price for price in prices 
+            if price['ProductId'] == product and price['Price'] not in ["Price not found", "N/A"]
+        ]
         
+        if not product_prices:
+            continue  # Skip if no valid prices are available
+        
+        # Sort valid prices
+        product_prices.sort(key=lambda x: float(x['Price']))
+
         # Assign ranks
         for i, price in enumerate(product_prices, start=1):
             price['Rank'] = i
-        
+
         # Find 'Our company's rank
         our_company_price = next((price for price in product_prices if price['Seller'] == 'Our company'), None)
         if our_company_price:
             rank_changes[product] = our_company_price['Rank']
-            #print(f"Product ID: {product}, Our company Rank: {our_company_price['Rank']}")  # Debug print
-    
+
     return rank_changes
+
 
 def get_previous_ranks(conn):
     """Retrieve previous ranks from the database."""
