@@ -5,7 +5,7 @@ Data is analyzed and visualized to show change of the prices over the time and c
 
 ## Key Components
 The project consists of following components that are developed by 4 team members that will send an automatic email to customers (predefined address) if the rank of our price for some product(s) changes.
-- idealo.py
+- idealo_collection.py
 - ebay_amazon_collection.py
 - products.db
 - visualization.py
