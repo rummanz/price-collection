@@ -5,7 +5,7 @@ import logging
 from ebay_amazon_collection import main as ebay_amazon_main
 from idealo_collection import main as idealo_main
 from rank_email import main as rank_email_main
-from visualization import generate_category_pdf, categories, fixed_prices
+from visualization import main as visualization_main
 from dotenv import load_dotenv
 
 # Configure logging
@@ -41,7 +41,7 @@ def generate_visualizations():
     """Generate visualization PDFs for all product categories"""
     try:
         logger.info("Starting visualization generation...")
-        generate_category_pdf(None, fixed_prices, categories)
+        visualization_main()
         logger.info("Visualization generation completed")
     except Exception as e:
         logger.error(f"Error in visualization generation: {e}")
