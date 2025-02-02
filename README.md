@@ -100,14 +100,18 @@ sudo apt install git mariadb-server phpmyadmin python3-pip webhook
 git clone https://github.com/rummanz/price-collection
 cd price-collection
 ```
+### **Step 5: Create a Python virtual environment and activate**
+```
+python3 -m venv .venv
+source .venv/bin/activate
+```
 
-### **Step 5: Install Project Dependencies**
+### **Step 6: Install Project Dependencies**
 ```
 pip3 install -r requirements.txt
 ```
 
-### **Step 6: Start the application**
+### **Step 7: Start the application**
 ```
 python3 main.py
 ```
-
