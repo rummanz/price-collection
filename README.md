@@ -45,7 +45,7 @@ Before running this project, ensure you have the following:
 ## Credentials
 
 ### Database Configuration:
-- DB_HOST="IP address of the MariaDB server (e.g., 192.168.1.100)"
+- DB_HOST="IP address of the MariaDB server (e.g., 127.0.0.1)"
 - DB_USER="Database username (e.g., admin)"
 - DB_PASSWORD="Database password"
 - DB_NAME="Database name (e.g., my_database)"
