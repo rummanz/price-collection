@@ -13,7 +13,6 @@ The project consists of following components that are developed by 4 team member
 - requirements.txt
 - readme.md
 - .env
-- .env.template
 - settings.txt
 - products.xlsx
 
@@ -61,12 +60,15 @@ Before running this project, ensure you have the following:
 ## Project Structures 
 
 ```price_collections/
-├── main.py                # Entry point for the application
-├── data/                  # Collected data storage
-├── logs/                  # Log files for data collection activities
-├── requirements.txt       # Project dependencies
-├── .env.template          # Environment variable template file
-└── README.md              # Project documentation
+├── main.py                      # Entry point for the application
+├── idealo_collection.py         # idealo scraping script
+├── ebay_amazon_collection.py    # ebay and amazon scraping script
+├── visualization.py             # Visualize the price and rank of our company
+├── rank_email.py                # Calculating rank for our company and send email notification
+├── pdf_output/                  # PDF output directory
+├── requirements.txt             # Project dependencies
+├── .env.template                # Environment variable template file
+└── README.md                    # Project documentation
 ```
 
 ## Authors:
