@@ -1,4 +1,4 @@
-# About this Project: Price Collection - Group 11. 
+# About this Project: Price Collection - Group 11
 The aim of the project is to create a price reporting tool in Python.
 Data source: idealo.de. ebay.de and amazon.de html web pages with price listing for particular products. Products and their URLs are defined beforehand.
 Data is analyzed and visualized to show change of the prices over the time and compare it to the price of our G7 company.
